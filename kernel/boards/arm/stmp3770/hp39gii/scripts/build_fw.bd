@@ -1,0 +1,36 @@
+options {
+
+flags = 0x0; 
+
+buildNumber = 0x1;
+
+productVersion = "5.0.0";
+
+componentVersion = "5.0.0";
+
+driveTag = 0x50;
+
+}
+
+sources {
+
+nuttx_bin = extern(0);	//第0个输入文件
+
+}
+
+section (0) {
+	//load $.init from inputFile;
+	//load $.text from inputFile > 0xC000;
+	//load $.init.text from inputFile;
+	
+	load nuttx_bin > 0x0000;
+
+	
+	//call inputFile:_kernel_init ();
+	
+	jump 0x0000;
+	
+	//load inputFile;
+	//call inputFile;
+}
+

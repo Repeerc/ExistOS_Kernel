@@ -1,0 +1,22 @@
+#
+# For a description of the syntax of this configuration file,
+# see the file kconfig-language.txt in the NuttX tools repository.
+#
+
+comment "STMP3770 Configuration Options"
+
+
+menu "STMP3770 Peripheral Support"
+
+config STMP3770_DEBUG_UART
+	bool "UART"
+	default y
+	select UART_SERIALDRIVER
+	
+config STMP3770_USB_OTG
+	bool "USB OTG"
+	default n
+	
+endmenu # STMP3770 Peripheral Support
+
+
