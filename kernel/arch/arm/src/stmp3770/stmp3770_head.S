@@ -260,7 +260,7 @@ __start:
 	mov		r0, r4
 	mov		r1, #0
 	add		r2, r0, #PGTABLE_SIZE
-	add	    r2, r2, #PGTABLE_SIZE
+	/*add	    r2, r2, #PGTABLE_SIZE*/
 .Lpgtableclear:
 	str		r1, [r0], #4
 	str		r1, [r0], #4
@@ -411,7 +411,7 @@ __start:
 	 * CR_S - System MMU protection
 	 * CR_V - Vectors relocated to 0xffff0000
 	 */
-
+	bic     r0, r0, #(CR_V)
 #ifndef CONFIG_ARCH_LOWVECTORS
 	orr		r0, r0, #(CR_S|CR_V)
 #else

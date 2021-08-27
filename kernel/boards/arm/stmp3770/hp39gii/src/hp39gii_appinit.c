@@ -61,7 +61,8 @@
 int board_app_initialize(uintptr_t arg)
 {
 	
-	
+	//sinfo("board_app_initialize\n");
+	syslog(LOG_INFO, "board_app_initialize\n");
 	
 	return OK;
 }

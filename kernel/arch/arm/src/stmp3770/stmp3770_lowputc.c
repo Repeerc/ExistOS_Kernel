@@ -1,5 +1,5 @@
 /****************************************************************************
- * arch/arm/src/lpc31xx/lpc31_lowputc.c
+ * arch/arm/src/stmp3770/stmp3770_lowputc.c
  *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with

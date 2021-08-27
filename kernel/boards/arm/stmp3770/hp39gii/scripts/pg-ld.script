@@ -27,15 +27,15 @@
  * address space:  0x1102 8000.  The virtual space is broken up into three
  * regions:
  *
- *                                            PHYSICAL         VIRTUAL
- *   NAME    DESCRIPTION                  SIZE    START    SIZE    START
- *  -------- --------------------------  -----  ----------- ------- -----------
- *   locked  Pages locked in memory.     128Kb 0x0000 0000 128Kb   0x0000 0000
- *   paged   Pages in nonvolatile store. 192Kb 0x0002 0000 512Kb   0x0002 0000
- *   data    .data/.bss/heap.            128Kb 0x0005 0000 128Kb   0x000A 0000
- *           Reserved for page table      32Kb 0x0007 0000  32Kb   0x000C 0000
- *  -------- --------------------------  ----- ----------- ------- -----------
- *                                       480Kb 0x0007 8000 512Kb   0x0009 0000
+ *                                            PHYSICAL     		    VIRTUAL
+ *   NAME    DESCRIPTION                  SIZE    START    		SIZE    START
+ *  -------- --------------------------  -----  -----------		 ------- -----------
+ *   locked  Pages locked in memory.     128Kb 0x0000 0000 		128Kb   0x0000 0000
+ *   paged   Pages in nonvolatile store. 192Kb 0x0002 0000 		512Kb   0x0002 0000
+ *   data    .data/.bss/heap.            128Kb 0x0005 0000 		128Kb   0x000A 0000
+ *           Reserved for page table      32Kb 0x0007 0000 		 32Kb   0x000C 0000
+ *  -------- --------------------------  ----- ----------- 		------- -----------
+ *                                       480Kb 0x0007 8000 		512Kb   0x000C 8000
  *
  * These region sizes must match the size in pages specified for each region
  * in the NuttX configuration file:  CONFIG_PAGING_NLOCKED, CONFIG_PAGING_NVPAGED,

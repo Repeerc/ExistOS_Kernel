@@ -19,6 +19,7 @@
 ############################################################################
 
 HEAD_ASRC = stmp3770_head.S
+#HEAD_ASRC = stmp3770_sysdat.S
 
 CMN_ASRCS  = arm_cache.S arm_fullcontextrestore.S arm_saveusercontext.S
 CMN_ASRCS += arm_vectors.S arm_vectoraddrexcptn.S arm_vectortab.S vfork.S
@@ -33,9 +34,11 @@ CMN_CSRCS += arm_reprioritizertr.c arm_schedulesigaction.c
 CMN_CSRCS += arm_sigdeliver.c arm_stackframe.c arm_syscall.c arm_unblocktask.c
 CMN_CSRCS += arm_undefinedinsn.c arm_usestack.c arm_vfork.c
 
+#stmp3770_start.c 
 
 CHIP_CSRCS  = stmp3770_boot.c stmp3770_irq.c stmp3770_timer.c stmp3770_allocateheap.c
 CHIP_CSRCS += stmp3770_serial.c stmp3770_decodeirq.c stmp3770_lowputc.c
+CHIP_CSRCS += stmp3770_usbdev.c stmp3770_clkctrl.c stmp3770_usbphy.c
 
 
 ifneq ($(CONFIG_ARCH_IDLE_CUSTOM),y)

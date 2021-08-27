@@ -15,8 +15,52 @@ config STMP3770_DEBUG_UART
 	
 config STMP3770_USB_OTG
 	bool "USB OTG"
-	default n
+	default y
+    select USBHOST_HAVE_ASYNCH if USBHOST	
+	
 	
 endmenu # STMP3770 Peripheral Support
 
+
+
+
+if STMP3770_USB_OTG && USBDEV
+
+menu "USB device controller driver (DCD) options"
+
+config STMP3770_USBDEV_EP0_MAXSIZE
+	int "EP0 Max packet size"
+	default 64
+	---help---
+		Endpoint 0 maximum packet size.  Default: 64
+
+config STMP3770_USBDEV_FRAME_INTERRUPT
+	bool "USB frame interrupt"
+	default n
+	---help---
+		Handle USB Start-Of-Frame events.  Enable reading SOF from interrupt
+		handler vs. simply reading on demand. Probably a bad idea... Unless
+		there is some issue with sampling the SOF from hardware asynchronously.
+
+config STMP3770_USBDEV_DMA
+	bool "Enable USB device DMA"
+	default n
+	---help---
+		Enable stmp3770-specific DMA support
+
+config STMP3770_USB0DEV_NOVBUS
+	bool "No USB0 VBUS sensing"
+	default n
+	depends on STMP3770_USB_OTG && USBDEV
+
+config STMP3770_USBDEV_REGDEBUG
+	bool "Register level debug"
+	depends on DEBUG_USB_INFO
+	default n
+	---help---
+		Output detailed register-level USB device debug information.  Requires
+		also CONFIG_DEBUG_USB_INFO.
+
+endmenu # USB device driver controller (DCD) options
+endif # STMP3770_USB_OTG && USBDEV
 

@@ -32,6 +32,13 @@
 #include "arm_internal.h"
 #include "arm_arch.h"
 
+#include "stmp3770_clkctrl.h"
+
+#include "registers/regspower.h"
+#include "registers/regsdigctl.h"
+
+#include "registers/regsapbx.h"
+#include "registers/regsapbh.h"
 
 #ifdef CONFIG_PAGING
 #  include <nuttx/page.h>
@@ -65,6 +72,8 @@ extern uint32_t _vector_end;   /* End+1 of vector block */
 static const struct section_mapping_s g_section_mapping[] =
 {
 	{STMP3770_PERIPHERAL_PSECTION, STMP3770_PERIPHERAL_VSECTION,
+	STMP3770_PERIPHERAL_MMUFLAG, STMP3770_PERIPHERAL_NSECTIONS}
+	,	{0, 0,
 	STMP3770_PERIPHERAL_MMUFLAG, STMP3770_PERIPHERAL_NSECTIONS}
 	
 	
@@ -198,7 +207,7 @@ static void  up_vectorpermissions(uint32_t mmuflags)
  *
  ****************************************************************************/
 
-static void up_copyvectorblock(void)
+static volatile void up_copyvectorblock(void)
 {
   uint32_t *src;
   uint32_t *end;
@@ -213,19 +222,29 @@ static void up_copyvectorblock(void)
      defined(CONFIG_PAGING)
   up_vectorpermissions(MMU_L2_VECTRWFLAGS);
 #endif
-
+	
   src  = (uint32_t *)&_vector_start;
   end  = (uint32_t *)&_vector_end;
-  dest = (uint32_t *)0x0;
-
+  
+  
+  dest = (uint32_t *)0x4;
+  
+  src++;
+  
   while (src < end)
     {
       *dest++ = *src++;
     }
-
+/*
 	src  = (uint32_t *) 0x20;
 	*src = 0x40;
-
+	*/
+/*
+  __asm volatile ("mov r0,#4");
+  __asm volatile ("mov r1,#0");
+  __asm volatile ("ldr r0,[r0]");
+  __asm volatile ("str r0,[r1]");
+  */
   /* Make the vectors read-only, cacheable again */
 
 #if !defined(CONFIG_ARCH_ROMPGTABLE) && defined(CONFIG_ARCH_LOWVECTORS) && defined(CONFIG_PAGING)
@@ -254,11 +273,19 @@ void arm_boot(void)
 
     up_copyvectorblock();
 	
-
-
-    arm_lowputc('1');
 	
+	BF_SETV(POWER_VDDDCTRL,TRG,26); // Set voltage = 1.45 V
+	
+	pll_enable();
+	
+	HCLK_set_div(0, 4);   //120 MHz
+    CPUCLK_set_div(0, 2); //240 MHz
+    CPUCLK_set_gating(0);
+    CPUCLK_set_bypass(0);
+	
+	BF_CS2(APBX_CTRL0, SFTRST, 0, CLKGATE, 0); //Enable APBX DMA
+	BF_CS2(APBH_CTRL0, SFTRST, 0, CLKGATE, 0); //Enable APBH DMA
 
-	//while(1);
+
 }
 

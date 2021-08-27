@@ -40,6 +40,7 @@
 #include "arm_arch.h"
 #include "arm_internal.h"
 
+#include "registers/regsuartdbg.h"
 
 #ifdef USE_SERIALDRIVER
 
@@ -58,7 +59,8 @@ struct up_dev_s
 /****************************************************************************
  * Private Function Prototypes
  ****************************************************************************/
-
+static inline void up_disableuartint(struct up_dev_s *priv, uint8_t *ier);
+static inline void up_restoreuartint(struct up_dev_s *priv, uint8_t ier);
 
 static int  up_setup(struct uart_dev_s *dev);
 static void up_shutdown(struct uart_dev_s *dev);
@@ -106,6 +108,13 @@ static const struct uart_ops_s g_uart_ops =
 
 
 /* I/O buffers */
+#ifndef CONFIG_UART_RXBUFSIZE
+#define CONFIG_UART_RXBUFSIZE 128
+#endif
+
+#ifndef CONFIG_UART_TXBUFSIZE
+#define CONFIG_UART_TXBUFSIZE 128
+#endif
 
 static char g_rxbuffer[CONFIG_UART_RXBUFSIZE];
 static char g_txbuffer[CONFIG_UART_TXBUFSIZE];
@@ -125,6 +134,7 @@ static uart_dev_t g_uartport =
   },
   .ops      = &g_uart_ops,
   .priv     = &g_uartpriv,
+  
 };
 
 
@@ -132,7 +142,23 @@ static uart_dev_t g_uartport =
  * Private Functions
  ****************************************************************************/
 
+/****************************************************************************
+ * Name: up_disableuartint
+ ****************************************************************************/
 
+static inline void up_disableuartint(struct up_dev_s *priv, uint8_t *ier)
+{
+	HW_UARTDBGIMSC_CLR(0x7FF);
+}
+
+/****************************************************************************
+ * Name: up_restoreuartint
+ ****************************************************************************/
+
+static inline void up_restoreuartint(struct up_dev_s *priv, uint8_t ier)
+{
+	HW_UARTDBGIMSC_SET(BM_UARTDBGIMSC_RTIM | BM_UARTDBGIMSC_TXIM | BM_UARTDBGIMSC_RXIM);
+}
 
 
 
@@ -148,7 +174,31 @@ static uart_dev_t g_uartport =
 
 static int up_setup(struct uart_dev_s *dev)
 {
-	
+//#ifndef CONFIG_SUPPRESS_UART_CONFIG
+
+  struct up_dev_s *priv = (struct up_dev_s *)dev->priv;
+  uint32_t regval;
+  
+  
+  HW_UARTDBGLCR_H_CLR( BM_UARTDBGLCR_H_SPS );
+  HW_UARTDBGLCR_H_SET( BM_UARTDBGLCR_H_FEN );
+  
+  
+  BW_UARTDBGIFLS_TXIFLSEL(BV_UARTDBGIFLS_TXIFLSEL__EMPTY);
+  BW_UARTDBGIFLS_RXIFLSEL(BV_UARTDBGIFLS_RXIFLSEL__NOT_EMPTY);
+				
+  
+  HW_UARTDBGIMSC_CLR(0x7FF);
+  HW_UARTDBGIMSC_SET(BM_UARTDBGIMSC_RTIM | BM_UARTDBGIMSC_TXIM | BM_UARTDBGIMSC_RXIM);
+  
+  HW_UARTDBGCR_SET( BM_UARTDBGCR_RXE | BM_UARTDBGCR_TXE);
+  
+  HW_UARTDBGICR_SET(0x7FF);
+  
+  
+  up_attach(dev);
+  
+//#endif
 }
 
 /****************************************************************************
@@ -162,7 +212,7 @@ static int up_setup(struct uart_dev_s *dev)
 static void up_shutdown(struct uart_dev_s *dev)
 {
   struct up_dev_s *priv = (struct up_dev_s *)dev->priv;
-
+  up_disableuartint(priv, NULL);
 
 }
 
@@ -172,7 +222,7 @@ static void up_shutdown(struct uart_dev_s *dev)
  * Description:
  *   Configure the UART to operation in interrupt driven mode.  This method
  *   is called when the serial port is opened.  Normally, this is just after
- *   he the setup() method is called, however, the serial console may operate
+ *   the the setup() method is called, however, the serial console may operate
  *   in a non-interrupt driven mode during the boot phase.
  *
  *   RX and TX interrupts are not enabled when by the attach method (unless
@@ -185,19 +235,18 @@ static void up_shutdown(struct uart_dev_s *dev)
 static int up_attach(struct uart_dev_s *dev)
 {
   int ret;
-
   /* Attach and enable the IRQ */
 
-  ret = OK;
+  ret = irq_attach(STMP3770_IRQ_DEBUG_UART, up_interrupt, dev);;
   if (ret == OK)
     {
       /* Enable the interrupt (RX and TX interrupts are still disabled
        * in the UART
        */
-
+	up_enable_irq(STMP3770_IRQ_DEBUG_UART);
 
     }
-
+	//HW_UARTDBGDR_WR('A');
   return ret;
 }
 
@@ -213,8 +262,9 @@ static int up_attach(struct uart_dev_s *dev)
  ****************************************************************************/
 
 static void up_detach(struct uart_dev_s *dev)
-{
-	
+{ 
+  up_disable_irq(STMP3770_IRQ_DEBUG_UART);
+  irq_detach(STMP3770_IRQ_DEBUG_UART);
 }
 
 
@@ -229,7 +279,75 @@ static void up_detach(struct uart_dev_s *dev)
  ****************************************************************************/
 
 static int up_interrupt(int irq, void *context, FAR void *arg)
-{
+{  
+  struct uart_dev_s *dev = (struct uart_dev_s *)arg;
+  uint8_t status;
+  int passes;
+
+  /* Loop until there are no characters to be transferred or,
+   * until we have been looping for a long time.
+   */
+
+  //for (passes = 0; passes < 256; passes++)
+    {
+      /* Get the current UART status and check for loop
+       * termination conditions
+       */
+
+       status = HW_UARTDBGMIS_RD();
+		
+      /* The NO INTERRUPT should be zero if there are pending
+       * interrupts
+       */
+	   //sinfo("sint:%X\n",status);
+
+      if ((status & 0x7FF) == 0)
+        {
+          /* Break out of the loop when there is no longer a pending
+           * interrupt
+           */
+        //  break;
+		  //HW_UARTDBGICR_SET(0x7FF);
+		  
+		  //sinfo("sint:%X\n",status);
+		  //for(;;);
+        }
+		//else  /* Handle the interrupt by its interrupt ID field */
+	  if((status & BM_UARTDBGMIS_RTMIS) != 0){
+		  /* Handle incoming, receive bytes (with or without timeout) */
+		  uart_recvchars(dev); 
+		 // HW_UARTDBGICR_SET(BM_UARTDBGICR_RTIC);
+		  
+	  }
+	    //else
+	  if((status & BM_UARTDBGMIS_RXMIS) != 0){
+		  /* Handle incoming, receive bytes (with or without timeout) */
+		  uart_recvchars(dev); 
+		 // HW_UARTDBGICR_SET(BM_UARTDBGICR_RXIC);
+		  
+	  }
+	   // else
+	  if((status & BM_UARTDBGMIS_TXMIS) != 0){
+		  
+		  uart_xmitchars(dev);
+		 // HW_UARTDBGICR_SET(BM_UARTDBGICR_TXIC);
+		  
+	  }	  
+	  
+	  
+	  /*
+	  else{
+		  serr("ERROR: Unexpected IIR: %02x\n", status);
+		  HW_UARTDBGICR_SET(0x7FF);
+		  //break;
+	  }
+*/
+
+		
+		//HW_UARTDBGDR_WR(0);
+		
+		
+    }
 	return OK;
 }
 
@@ -271,7 +389,9 @@ static int up_ioctl(struct file *filep, int cmd, unsigned long arg)
 static int up_receive(struct uart_dev_s *dev, unsigned int *status)
 {
   uint32_t rbr;
-
+  
+  rbr = HW_UARTDBGDR_RD();
+  *status = rbr >> 8;
   return rbr & 0xff;
 }
 
@@ -291,13 +411,16 @@ static void up_rxint(struct uart_dev_s *dev, bool enable)
   struct up_dev_s *priv = (struct up_dev_s *)dev->priv;
   if (enable)
     {
+		//sinfo("RxintEnable\n");
 #ifndef CONFIG_SUPPRESS_SERIAL_INTS
-
+	HW_UARTDBGIMSC_SET(BM_UARTDBGIMSC_RTIM | BM_UARTDBGIMSC_RXIM);
+	
 #endif
     }
   else
     {
-		
+		//sinfo("RxintDisable\n");
+		HW_UARTDBGIMSC_CLR(BM_UARTDBGIMSC_RTIM | BM_UARTDBGIMSC_RXIM);
     }
 
 
@@ -313,7 +436,8 @@ static void up_rxint(struct uart_dev_s *dev, bool enable)
 
 static bool up_rxavailable(struct uart_dev_s *dev)
 {
-	
+	//sinfo("up_rxavailable\n");
+	return(!(HW_UARTDBGFR_RD() & BM_UARTDBGFR_RXFE));
 	
 }
 
@@ -327,8 +451,8 @@ static bool up_rxavailable(struct uart_dev_s *dev)
 
 static void up_send(struct uart_dev_s *dev, int ch)
 {
-	
-	arm_lowputc(ch);
+	//sinfo("up_send\n");
+	HW_UARTDBGDR_WR(ch);
 	
 }
 
@@ -345,13 +469,16 @@ static void up_txint(struct uart_dev_s *dev, bool enable)
   struct up_dev_s *priv = (struct up_dev_s *)dev->priv;
   if (enable)
     {
+		//sinfo("txintEnable\n");
 #ifndef CONFIG_SUPPRESS_SERIAL_INTS
-
+		HW_UARTDBGIMSC_SET(BM_UARTDBGIMSC_TXIM);
 #endif
     }
   else
     {
-		
+			
+	HW_UARTDBGIMSC_CLR(BM_UARTDBGIMSC_TXIM);
+		//sinfo("txintDisable\n");
     }
 
 }
@@ -366,7 +493,9 @@ static void up_txint(struct uart_dev_s *dev, bool enable)
 
 static bool up_txready(struct uart_dev_s *dev)
 {
-  return 1;
+	//sinfo("up_txready\n");
+	return (!(HW_UARTDBGFR_RD() & BM_UARTDBGFR_TXFF));
+	//return true;
 }
 
 /****************************************************************************
@@ -379,7 +508,9 @@ static bool up_txready(struct uart_dev_s *dev)
 
 static bool up_txempty(struct uart_dev_s *dev)
 {
-  return 1;
+	//sinfo("up_txempty\n");00
+	return (!(HW_UARTDBGFR_RD() & BM_UARTDBGFR_TXFF));
+	//return true;
 }
 
 
@@ -399,11 +530,17 @@ static bool up_txempty(struct uart_dev_s *dev)
 
 void arm_serialinit(void)
 {
-#if defined(CONFIG_UART_SERIAL_CONSOLE)
-  uart_register("/dev/console", &g_uartport);
-#endif
 
+  
+#if defined(CONFIG_UART_SERIAL_CONSOLE)
+  g_uartport.isconsole = true;
+  up_setup(&g_uartport);
+  
+  uart_register("/dev/console", &g_uartport);
+  
+#endif
   uart_register("/dev/ttyS0", &g_uartport);
+
 }
 
 
@@ -418,7 +555,14 @@ void arm_serialinit(void)
 
 int up_putc(int ch)
 {
+	
+  struct up_dev_s *priv = &g_uartpriv;
+  uint8_t ier;
+  
   /* Check for LF */
+
+  //up_disable_irq(STMP3770_IRQ_DEBUG_UART);
+  up_disableuartint(priv, &ier);
 
   if (ch == '\n')
     {
@@ -430,6 +574,11 @@ int up_putc(int ch)
   /* Output the character */
 
   arm_lowputc(ch);
+  up_restoreuartint(priv, ier);
+  
+  //up_enable_irq(STMP3770_IRQ_DEBUG_UART);
+  
+  
   return ch;
 }
 
